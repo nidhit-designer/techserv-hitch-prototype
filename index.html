@@ -261,6 +261,23 @@ svg.map.lassoing{cursor:crosshair}
 .skiprow .reason{color:var(--muted);font-size:12px;margin-top:4px}
 .skiprow .fix{color:var(--brand);font-weight:700;font-size:12px;margin-top:5px;cursor:pointer}
 
+/* ---------- Presentation mode ---------- */
+.pbar{position:fixed;left:50%;transform:translateX(-50%);bottom:14px;z-index:80;background:var(--ink);color:#fff;
+  border-radius:12px;box-shadow:0 10px 34px rgba(0,0,0,.38);display:flex;align-items:center;gap:14px;
+  padding:12px 16px;max-width:820px;width:calc(100vw - 60px)}
+.pbar .pstep{font-weight:800;font-size:10.5px;letter-spacing:.1em;color:#8fd0c3;white-space:nowrap}
+.pbar .pcap{flex:1;font-size:13.5px;line-height:1.45}
+.pbar .pcap b{color:#aee3d8}
+.pbar .btn.pnext{background:var(--accent);border-color:var(--accent);color:#fff}
+.pbar .btn.pghost{background:transparent;border-color:rgba(255,255,255,.35);color:#fff}
+.pcard-veil{position:fixed;inset:0;background:rgba(22,50,92,.52);z-index:75;display:flex;align-items:center;justify-content:center}
+.pcard{background:#fff;border-radius:12px;max-width:600px;margin:20px;padding:30px 34px;box-shadow:0 14px 50px rgba(0,0,0,.3)}
+.pcard .ey{font-size:11px;font-weight:800;letter-spacing:.1em;color:var(--brand);text-transform:uppercase}
+.pcard h2{color:var(--ink);margin:8px 0 10px;font-size:22px}
+.pcard p{margin:0 0 10px;color:var(--text);font-size:14px;line-height:1.55}
+.pcard ul{margin:10px 0 0;padding-left:20px;color:var(--text);font-size:13.5px;line-height:1.7}
+.pcard .footnote{color:var(--muted);font-size:12px;margin-top:12px}
+
 /* toast */
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;
   padding:10px 16px;border-radius:8px;box-shadow:var(--shadow);z-index:90;opacity:0;transition:opacity .2s,transform .2s;
@@ -283,6 +300,7 @@ svg.map.lassoing{cursor:crosshair}
     <button class="saved">Saved: TechServ · Pole audits — all states <span class="chev">▾</span></button>
     <button class="icon-btn" title="Settings">⚙</button>
     <span class="spacer"></span>
+    <button class="btn" id="presentBtn">▶ Present</button>
     <button class="btn" id="autoBtn" disabled>✨ Auto Schedule</button>
     <button class="btn primary" id="dispatchBtn" disabled>➤ Dispatch (0)</button>
   </header>
@@ -441,7 +459,7 @@ function toast(m){let t=$('.toast');if(!t){t=document.createElement('div');t.cla
   t.innerHTML=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),3400)}
 function jobXY(j){const t=TOWNS[j.town];return{x:t.x+j.dx,y:t.y+j.dy}}
 function fmtd(n){return (Math.round(n*10)/10).toLocaleString('en-US')}
-function coach(no,msg){S.step=no;$('#coachNo').textContent='STEP '+no+' OF 5';$('#coachMsg').innerHTML=msg;$('#coach').classList.remove('hidden')}
+function coach(no,msg){if(S.presenting)return;S.step=no;$('#coachNo').textContent='STEP '+no+' OF 5';$('#coachMsg').innerHTML=msg;$('#coach').classList.remove('hidden')}
 
 /* ============================================================
    MAP RENDER
@@ -688,7 +706,9 @@ function openAutoSchedule(){
       '<div class="pt">Optimizing placement…</div>'+
       '<div class="ps">'+jobs.length+' jobs × 1 crew × 8 days · solves in under 10 seconds</div></div>';
     document.querySelector('.sheet-ft').style.visibility='hidden';
-    setTimeout(()=>{runSolver();veil.remove()},1600);
+    const done=()=>{if(!S.draft){runSolver();veil.remove()}};
+    const h=setTimeout(()=>{done();if(S.presenting)pPending=null},1600);
+    if(S.presenting)pPending=()=>{clearTimeout(h);done()};
   };
 }
 
@@ -970,7 +990,113 @@ $('#projChips').addEventListener('click',e=>{
   $$('#projChips .chip').forEach(x=>x.classList.toggle('active',x===c));renderJobs();
 });
 
+/* ============================================================
+   PRESENTATION MODE — click-through walkthrough for the
+   TechServ / Priten follow-up call. → or Space advances.
+   ============================================================ */
+let pPending=null;   // pending async work; flushed when the presenter advances
+function autoLasso(){
+  S.lassoOn=true;$('#lassoBtn').classList.add('on');
+  const cx=420,cy=655,rx=140,ry=115,pts=[];
+  for(let a=0;a<=Math.PI*2+0.15;a+=0.14)pts.push([cx+rx*Math.cos(a),cy+ry*Math.sin(a)]);
+  S.lassoPts=[];let i=0;
+  const finish=()=>{clearInterval(t);S.lassoPts=pts.slice();S.lassoClosed=true;computeLasso();
+    S.lassoOn=false;$('#lassoBtn').classList.remove('on');render()};
+  const t=setInterval(()=>{
+    if(i>=pts.length){finish();pPending=null;return}
+    S.lassoPts.push(pts[i++]);drawMap();
+  },26);
+  pPending=finish;
+}
+const PRESENT=[
+  {card:'<div class="ey">TechServ × Sitetracker · Auto Scheduler beta</div>'+
+    '<h2>Hitch-based scheduling, on Job Scheduler 2.0</h2>'+
+    '<p>TechServ audits utility poles across 16 states. Crews leave Tyler, TX on a Thursday, live in hotels for ~8 days — a <b>hitch</b> — and work a geographic cluster of jobs before driving home.</p>'+
+    '<p>This walkthrough shows their exact workflow running inside our scheduler: <b>draw → size → hitch → auto-schedule → validate → dispatch → survive the week</b>.</p>'+
+    '<div class="footnote">Click Next (or press →) to advance. Concept prototype — schematic map, sample data.</div>',
+   do:()=>switchView('map')},
+  {cap:'<b>Their world on our map.</b> Every job is a pin, colour-coded by parent project — the ArcGIS symbology they plan with today. Tyler is home base; Team C is already mid-hitch in West Virginia (fly + rental).',
+   do:()=>switchView('map')},
+  {cap:'<b>The lasso.</b> Draw a boundary around the South-Texas cluster and it sizes the trip live: 790 poles ≈ <b>9.5 days — over the 8-day hitch</b>. Poles × rate, not template durations.',
+   do:()=>autoLasso()},
+  {cap:'<b>Adjust like Greg does.</b> Click a pin to leave a job out — the readout recomputes. <b>8.0 days: the trip fits Thu → Thu.</b> Or keep 9.5 as a deliberate exception; the human stays in charge.',
+   do:()=>{S.excluded.add('JOB-4326');render()}},
+  {cap:'<b>Create the hitch — a first-class object.</b> A parent work package over these jobs: day-level Thu→Thu window, lead-only crew (helpers stay off-system), and the overnight plan generated as an <b>output for hotel booking</b>.',
+   do:()=>openCreateHitch(false)},
+  {cap:'<b>Auto Schedule, scoped to the hitch.</b> 7 jobs × 1 crew × 8 days — same popover, same guardrails, solves in under 10 seconds. Sequencing by drive distance is the solver’s core tenet.',
+   do:()=>{$('#hCreate').click();openAutoSchedule()}},
+  {cap:'<b>The answer is a draft route you can see.</b> Numbered stops, drive legs, hotel nights on the map — dashed until a human approves. One job skipped with a fixable reason; nothing disappears.',
+   do:()=>$('#asRun').click()},
+  {cap:'<b>Greg’s view: Thursday to Thursday.</b> Days, not hours. Travel legs and hotel nights live on the board next to the work. A buffer day absorbs what the week throws at them.',
+   do:()=>switchView('board')},
+  {cap:'<b>Dispatch.</b> The draft commits — solid route, scheduled jobs, crew notified. Planning that took 2 days of ArcGIS + Google Maps + Excel just happened in one screen.',
+   do:()=>$('#dispatchBtn').click()},
+  {cap:'<b>Reality #1 — rain-out.</b> Day 2 washes out. Jobs roll forward into the buffer, <b>locked to Team A</b>, sequence intact. Overflow would flag a 9-day exception or roll to the next hitch.',
+   do:()=>$('#scRain').click()},
+  {cap:'<b>Reality #2 — a new job lands inside the boundary.</b> Team A is already out there. Add it to the running hitch — Day 4, same hotel — instead of triggering a whole new trip for one job.',
+   do:()=>{$('#scNew').click();
+     const add=()=>{const b=$('#njAdd');if(b)b.click()};
+     const h=setTimeout(()=>{add();pPending=null},1100);
+     pPending=()=>{clearTimeout(h);add()}}},
+  {cap:'<b>Reality #3 — priority pull, within the hour.</b> Days 6–7 bulk-unschedule in one action: events cleared, statuses revert to <b>Unassigned</b>, jobs return to the queue. Team A re-routes to Odessa. Point-and-click, no developer.',
+   do:()=>$('#scPull').click()},
+  {card:'<div class="ey">What this asks of the product</div>'+
+    '<h2>The beta design scope</h2>'+
+    '<ul>'+
+    '<li><b>Map lasso + live trip sizing</b> — the top gap; boundary drawing with poles→days inside it</li>'+
+    '<li><b>Hitch as a first-class object</b> — parent grouping of jobs, visible and editable before scheduling</li>'+
+    '<li><b>Thu→Thu day-level view</b> — hitch window, no clock times</li>'+
+    '<li><b>Point-and-click corrections</b> — roll forward, add mid-hitch, bulk unschedule with status reversion</li>'+
+    '</ul>'+
+    '<p class="footnote">Out of beta scope: mixed fly+drive routing (research spike), live weather feeds (roadmap), hotel booking (we hand their process good output). Solver clustering, sequencing and fixed-home anchoring already work today.</p>',
+   do:null},
+];
+let pIdx=-1,pBar=null,pCard=null;
+function pRender(){
+  const st=PRESENT[pIdx];
+  if(pCard){pCard.remove();pCard=null}
+  if(st.card){
+    pCard=document.createElement('div');pCard.className='pcard-veil';
+    pCard.innerHTML='<div class="pcard">'+st.card+'</div>';
+    document.body.appendChild(pCard);
+  }
+  if(!pBar){
+    pBar=document.createElement('div');pBar.className='pbar';document.body.appendChild(pBar);
+  }
+  const last=pIdx===PRESENT.length-1;
+  pBar.innerHTML='<span class="pstep">'+(pIdx+1)+' / '+PRESENT.length+'</span>'+
+    '<span class="pcap">'+(st.cap||(pIdx===0?'TechServ × Sitetracker — hitch-based scheduling':'Design scope summary'))+'</span>'+
+    '<button class="btn sm pghost" id="pRestart" title="Restart">⟲</button>'+
+    '<button class="btn sm pghost" id="pExit">Exit</button>'+
+    (last?'<button class="btn sm pnext" id="pNext">Done ✓</button>':'<button class="btn sm pnext" id="pNext">Next ▸</button>');
+  $('#pNext').onclick=()=>last?pExit():pGo(pIdx+1);
+  $('#pExit').onclick=pExit;
+  $('#pRestart').onclick=()=>{location.href=location.pathname+'?present=1'};
+}
+function pGo(i){
+  if(pPending){try{pPending()}catch(e){}pPending=null}   // flush unfinished animation/solver
+  pIdx=i;const st=PRESENT[i];
+  if(st.do)try{st.do()}catch(e){}
+  pRender();
+}
+function pExit(){location.href=location.pathname}
+function startPresent(){
+  S.presenting=true;$('#coach').classList.add('hidden');
+  document.addEventListener('keydown',e=>{
+    if(!S.presenting)return;
+    if(e.key==='ArrowRight'||e.key===' '){e.preventDefault();
+      pIdx===PRESENT.length-1?pExit():pGo(pIdx+1)}
+    if(e.key==='Escape')pExit();
+  });
+  pGo(0);
+}
+$('#presentBtn').onclick=()=>{
+  if(S.lassoPts.length||S.hitch){location.href=location.pathname+'?present=1';return}
+  startPresent();
+};
+
 wireLasso();wireScenarios();render();
+if(location.search.indexOf('present=1')>-1)startPresent();
 </script>
 </body>
 </html>

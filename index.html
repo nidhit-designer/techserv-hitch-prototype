@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TechServ · Hitch Planning — Job Scheduler 2.0 concept</title>
+<style>
+/* ============================================================
+   TechServ hitch-planning prototype on the Job Scheduler 2.0
+   shell. Reuses the SLDS/Sitetracker look from
+   ~/auto-schedule-prototypes/assets/shell.css.
+   ============================================================ */
+:root {
+  --brand:#1a6e5e; --brand-dark:#14564a; --brand-soft:#e7f2ef;
+  --accent:#17a3a3;
+  --page:#f3f3f3; --line:#dddbda; --line-soft:#ebeaea;
+  --ink:#16325c; --text:#3e3e3c; --muted:#706e6b;
+  --warn-bg:#fcf3e2; --warn-line:#ecd6a3; --warn-ink:#5b4708; --warn-icon:#b5781a;
+  --hi:#d83b01; --med:#0b5cab; --low:#706e6b;
+  /* parent-project pin colors (mirrors their ArcGIS symbology) */
+  --aep:#0b5cab;        /* AEP PCI  */
+  --aeptx:#17a3a3;      /* AEP Texas */
+  --ju:#b5781a;         /* Joint Use */
+  --eng:#5b4db2;        /* Engineering */
+  --radius:6px; --shadow:0 2px 6px rgba(0,0,0,.12);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text);background:var(--page);font-size:13px;line-height:1.4;-webkit-font-smoothing:antialiased}
+button{font-family:inherit}
+.app{height:100vh;display:flex;flex-direction:column;background:#fff}
+
+/* ---------- Top bar ---------- */
+.topbar{display:flex;align-items:center;gap:12px;padding:8px 16px;border-bottom:1px solid var(--line);flex:0 0 auto}
+.seg{display:inline-flex;background:#f1f1f0;border-radius:8px;padding:3px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--muted);padding:6px 14px;border-radius:6px;
+  font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.seg button.active{background:var(--brand);color:#fff;box-shadow:var(--shadow)}
+.saved{display:inline-flex;align-items:center;gap:8px;margin-left:6px;border:1px solid var(--line);
+  border-radius:6px;padding:6px 10px;color:var(--ink);font-weight:600;background:#fff;cursor:pointer}
+.saved .chev{color:var(--muted)}
+.icon-btn{width:32px;height:32px;border:1px solid var(--line);background:#fff;border-radius:6px;color:var(--muted);
+  cursor:pointer;font-size:14px;display:inline-flex;align-items:center;justify-content:center}
+.spacer{flex:1}
+.btn{border:1px solid var(--line);background:#fff;color:var(--ink);padding:7px 14px;border-radius:6px;font-weight:600;
+  cursor:pointer;display:inline-flex;align-items:center;gap:7px;font-size:13px;white-space:nowrap}
+.btn:hover{background:#fafafa}
+.btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.btn.primary:hover{background:var(--brand-dark)}
+.btn.sm{padding:5px 10px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.danger{color:var(--hi)}
+
+/* ---------- Coach / guided steps ---------- */
+.coach{display:flex;align-items:center;gap:12px;margin:10px 16px 0;padding:9px 14px;border-radius:var(--radius);
+  background:var(--brand-soft);border:1px solid #b9ddd4;color:var(--brand-dark);flex:0 0 auto}
+.coach .step-no{background:var(--brand);color:#fff;border-radius:999px;font-weight:800;font-size:11px;padding:2px 9px;white-space:nowrap}
+.coach .msg{flex:1;font-weight:600}
+.coach .dismiss{background:none;border:0;color:var(--brand-dark);cursor:pointer;font-size:15px}
+
+/* ---------- Banner ---------- */
+.banner{display:flex;align-items:flex-start;gap:12px;margin:10px 16px 0;padding:12px 16px;background:var(--warn-bg);
+  border:1px solid var(--warn-line);border-radius:var(--radius);flex:0 0 auto}
+.banner.success{background:var(--brand-soft);border-color:#b9ddd4}
+.banner .b-icon{font-size:18px;line-height:1.2;color:var(--warn-icon)}
+.banner.success .b-icon{color:var(--brand)}
+.banner .b-body{flex:1}
+.banner .b-title{font-weight:700;color:var(--warn-ink)}
+.banner.success .b-title{color:var(--brand-dark)}
+.banner .b-sub{color:#6b5a2a;margin-top:2px}
+.banner.success .b-sub{color:#2f5a51}
+.banner .b-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.pill-link{background:#fff;border:1px solid var(--warn-line);border-radius:999px;padding:4px 12px;font-weight:600;cursor:pointer;color:var(--warn-ink)}
+.banner.success .pill-link{border-color:#b9ddd4;color:var(--brand-dark)}
+
+/* ---------- Body ---------- */
+.body{flex:1;display:flex;min-height:0}
+
+/* ---------- Left jobs panel ---------- */
+.jobs-panel{width:296px;flex:0 0 296px;border-right:1px solid var(--line);display:flex;flex-direction:column;min-height:0}
+.panel-head{display:flex;align-items:center;gap:8px;padding:12px 14px 8px}
+.panel-head h2{font-size:15px;margin:0;color:var(--ink);font-weight:700}
+.search{display:flex;align-items:center;gap:8px;margin:0 14px 8px;border:1px solid var(--line);border-radius:6px;
+  padding:6px 10px;color:var(--muted)}
+.search input{border:0;outline:0;flex:1;font-size:13px;color:var(--text)}
+.chips{display:flex;gap:6px;padding:2px 14px 10px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;cursor:pointer;border:1px solid var(--line);background:#fff;
+  color:var(--text);border-radius:999px;padding:4px 10px;font-weight:600;font-size:11.5px}
+.chip.active{background:var(--brand);border-color:var(--brand);color:#fff}
+.chip .swatch{width:9px;height:9px;border-radius:50%;display:inline-block}
+.job-list{flex:1;overflow:auto;padding:10px 14px}
+.job-card{border:1px solid var(--line);border-radius:var(--radius);padding:9px 11px;margin-bottom:9px;background:#fff;cursor:pointer;position:relative}
+.job-card:hover{box-shadow:var(--shadow)}
+.job-card.inlasso{border-color:var(--brand);background:#f4faf8}
+.job-card.excluded{opacity:.5}
+.job-card .jid{color:var(--brand);font-weight:700}
+.jc-top{display:flex;align-items:center;gap:7px}
+.jc-meta{color:var(--muted);margin-top:5px;display:grid;gap:2px;font-size:12px}
+.tag{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:999px;white-space:nowrap}
+.tag.unassigned{background:#f3e9d2;color:#7a5b12}
+.tag.hitchtag{background:#e7eeec;color:#33534b}
+.tag.skip{background:#fde4e1;color:#aa1503}
+.tag.drafttag{background:#e7eeec;color:#4f615c}
+.tag.sched{background:#e6effa;color:#0b5cab}
+.prio{font-weight:700}.prio.High{color:var(--hi)}.prio.Medium{color:var(--med)}.prio.Low{color:var(--low)}
+.projdot{width:9px;height:9px;border-radius:50%;display:inline-block;flex:0 0 auto}
+.poles{font-weight:700;color:var(--ink)}
+
+/* ---------- Map stage ---------- */
+.stage{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0}
+.stage-toolbar{display:flex;align-items:center;gap:10px;padding:10px 14px;flex-wrap:wrap}
+.stage-toolbar h2{font-size:15px;margin:0;color:var(--ink);font-weight:700}
+.lasso-btn.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+.map-wrap{flex:1;position:relative;min-height:0;border-top:1px solid var(--line);background:#eef1f0;overflow:hidden}
+svg.map{position:absolute;inset:0;width:100%;height:100%}
+svg.map.lassoing{cursor:crosshair}
+.state{fill:#e4e9e7;stroke:#c8d2ce;stroke-width:2}
+.state-label{fill:#9aa6a1;font-weight:800;letter-spacing:.12em}
+.roadline{stroke:#d3dad7;stroke-width:1.5;fill:none}
+.town-label{fill:#6b7671;font-size:11px;font-weight:600}
+.home-label{fill:var(--ink);font-size:11px;font-weight:800}
+
+.pin{cursor:pointer}
+.pin circle.core{stroke:#fff;stroke-width:1.6}
+.pin.dim{opacity:.35}
+.pin.excluded circle.core{fill:#fff !important;stroke-width:2.4}
+.pin text{font-size:9px;font-weight:800;fill:#fff;text-anchor:middle;pointer-events:none}
+.pin.newjob circle.halo{animation:pinpulse 1.2s ease-out infinite}
+@keyframes pinpulse{0%{r:8;opacity:.55}100%{r:22;opacity:0}}
+
+.lasso-path{fill:rgba(26,110,94,.10);stroke:var(--brand);stroke-width:2;stroke-dasharray:7 5}
+.lasso-path.over{fill:rgba(181,120,26,.10);stroke:var(--warn-icon)}
+.hitch-poly{fill:rgba(26,110,94,.07);stroke:var(--brand);stroke-width:2}
+.route{fill:none;stroke:var(--brand);stroke-width:2.5;stroke-dasharray:8 6;marker-end:none}
+.route.committed{stroke-dasharray:none;stroke:var(--med)}
+.leg-home{fill:none;stroke:#9aa6a1;stroke-width:2;stroke-dasharray:3 5}
+.stopnum circle{fill:var(--brand);stroke:#fff;stroke-width:1.6}
+.stopnum.committed circle{fill:var(--med)}
+.stopnum text{fill:#fff;font-size:9.5px;font-weight:800;text-anchor:middle}
+.hotel-badge rect{fill:#fff;stroke:var(--line);rx:4}
+.hotel-badge text{font-size:9.5px;font-weight:700;fill:var(--text)}
+
+/* live lasso readout */
+.readout{position:absolute;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);
+  padding:10px 14px;min-width:210px;z-index:12}
+.readout .r-days{font-size:19px;font-weight:800;color:var(--brand-dark)}
+.readout.over .r-days{color:var(--warn-icon)}
+.readout .r-sub{color:var(--muted);margin-top:1px}
+.readout .r-warn{margin-top:7px;background:var(--warn-bg);border:1px solid var(--warn-line);color:var(--warn-ink);
+  border-radius:6px;padding:6px 9px;font-size:12px;font-weight:600}
+.readout .r-ok{margin-top:7px;background:var(--brand-soft);border:1px solid #b9ddd4;color:var(--brand-dark);
+  border-radius:6px;padding:6px 9px;font-size:12px;font-weight:600}
+.readout .r-actions{display:flex;gap:7px;margin-top:9px}
+.readout .hint{color:var(--muted);font-size:11.5px;margin-top:7px}
+
+/* legend */
+.legend{position:absolute;left:12px;bottom:12px;background:#fff;border:1px solid var(--line);border-radius:8px;
+  padding:9px 12px;box-shadow:var(--shadow);z-index:8;font-size:12px}
+.legend .k{display:flex;align-items:center;gap:7px;margin:3px 0}
+.legend .sw{width:10px;height:10px;border-radius:50%}
+.legend .title{font-weight:700;color:var(--ink);margin-bottom:3px}
+
+/* ---------- Right rail: hitches ---------- */
+.rail{width:296px;flex:0 0 296px;border-left:1px solid var(--line);display:flex;flex-direction:column;min-height:0;background:#fff}
+.rail .job-list{padding:10px 12px}
+.hitch-card{border:1px solid var(--line);border-left:4px solid var(--brand);border-radius:var(--radius);
+  padding:10px 12px;margin-bottom:10px;background:#fff}
+.hitch-card.draft-h{border-style:dashed;border-left-style:solid}
+.hitch-card .h-name{font-weight:800;color:var(--ink)}
+.hitch-card .h-sub{color:var(--muted);margin-top:2px;font-size:12px}
+.hitch-card .h-row{display:flex;gap:7px;align-items:center;margin-top:6px;flex-wrap:wrap}
+.loadbar{height:6px;border-radius:999px;background:#eee;overflow:hidden;margin-top:8px}
+.loadbar>i{display:block;height:100%;background:var(--brand)}
+.loadbar>i.over{background:var(--warn-icon)}
+.loadmeta{display:flex;justify-content:space-between;color:var(--muted);font-size:11px;margin-top:3px}
+.mode-pill{font-size:10.5px;font-weight:800;border-radius:999px;padding:1px 8px;background:#f1f1f0;color:var(--muted)}
+.mode-pill.fly{background:#e9e6f7;color:#5b4db2}
+
+/* ---------- Hitch board (Thu→Thu) ---------- */
+.board-wrap{flex:1;position:relative;min-height:0;border-top:1px solid var(--line);overflow:hidden}
+.board-scroll{position:absolute;inset:0;overflow:auto}
+.btable{min-width:1080px}
+.bhead{position:sticky;top:0;z-index:5;background:#fff;border-bottom:1px solid var(--line);
+  display:grid;grid-template-columns:230px repeat(8,minmax(104px,1fr))}
+.bh-cell{padding:10px 8px;text-align:center;font-weight:700;color:var(--ink);border-left:1px solid var(--line-soft);font-size:12px}
+.bh-cell .dow{display:block;font-size:10.5px;color:var(--muted);font-weight:700;letter-spacing:.06em}
+.bh-cell.hstart{background:var(--brand);color:#fff}
+.bh-cell.hstart .dow{color:#cfe8e1}
+.bh-cell.res-h{text-align:left;border-left:0;position:sticky;left:0;background:#fff;z-index:6}
+.brow{display:grid;grid-template-columns:230px repeat(8,minmax(104px,1fr));border-bottom:1px solid var(--line-soft);min-height:86px}
+.brow:hover{background:#fcfcfc}
+.res-cell{position:sticky;left:0;z-index:3;background:#fff;border-right:1px solid var(--line);padding:8px 10px;
+  display:flex;flex-direction:column;gap:3px}
+.brow:hover .res-cell{background:#fcfcfc}
+.res-name{font-weight:700;color:var(--ink);display:flex;align-items:center;gap:6px}
+.res-name .ricon{width:18px;height:18px;border-radius:4px;background:#e9e6f7;color:#5b4db2;
+  display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+.res-sub{color:var(--muted);font-size:12px}
+.res-note{font-size:11px;color:var(--brand);font-weight:700}
+.bday{border-left:1px solid var(--line-soft);padding:5px;display:flex;flex-direction:column;gap:4px}
+.bday.travelday{background:repeating-linear-gradient(-45deg,#fafaf9,#fafaf9 7px,#f2f2f1 7px,#f2f2f1 9px)}
+.dayblock{border-radius:6px;padding:5px 7px;background:#eef4fb;border-left:4px solid var(--med);
+  box-shadow:0 1px 2px rgba(0,0,0,.08);cursor:pointer;font-size:11.5px}
+.dayblock .b-id{font-weight:800;color:var(--ink)}
+.dayblock .b-sub{color:var(--muted);font-size:10.5px}
+.dayblock.draft{border:1px dashed #c48ea4;border-left:4px solid #b0326a;background:#fdf1f6}
+.dayblock.draft .dtag{display:inline-block;background:#b0326a;color:#fff;font-size:8.5px;font-weight:800;
+  letter-spacing:.05em;border-radius:3px;padding:0 5px;margin-bottom:2px}
+.dayblock.rolled{outline:2px solid var(--warn-icon);outline-offset:1px}
+.travel-strip{font-size:10.5px;color:var(--muted);display:flex;align-items:center;gap:4px;padding:1px 3px}
+.travel-strip b{color:var(--text)}
+.hotel-strip{font-size:10.5px;color:#5b4db2;font-weight:700;display:flex;align-items:center;gap:4px;padding:0 3px}
+.offhitch{color:#c9c7c5;font-size:11px;padding:4px;text-align:center}
+
+/* ---------- Scenario bar ---------- */
+.scenbar{display:flex;gap:8px;align-items:center;padding:8px 16px;border-top:1px solid var(--line);background:#fbfbfa;flex:0 0 auto;flex-wrap:wrap}
+.scenbar .lbl{font-weight:800;color:var(--ink);font-size:11.5px;letter-spacing:.06em;text-transform:uppercase}
+.scen{border:1px solid var(--line);background:#fff;border-radius:999px;padding:5px 13px;font-weight:600;cursor:pointer;font-size:12px}
+.scen:hover{background:#fafafa}
+.scen:disabled{opacity:.4;cursor:default}
+.scen.done{background:var(--brand-soft);border-color:#b9ddd4;color:var(--brand-dark)}
+
+/* ---------- Side sheet (create hitch / popover) ---------- */
+.sheet-veil{position:fixed;inset:0;background:rgba(22,50,92,.28);z-index:50;display:flex;align-items:center;justify-content:center}
+.sheet{background:#fff;border-radius:10px;box-shadow:0 10px 40px rgba(0,0,0,.25);width:430px;max-width:92vw;max-height:88vh;
+  display:flex;flex-direction:column;overflow:hidden}
+.sheet-head{padding:15px 18px 12px;border-bottom:1px solid var(--line)}
+.sheet-head h3{margin:0;color:var(--ink);font-size:16px}
+.sheet-head .sub{color:var(--muted);margin-top:3px}
+.sheet-bd{padding:14px 18px;overflow:auto}
+.sheet-ft{padding:12px 18px;border-top:1px solid var(--line);display:flex;gap:8px;justify-content:flex-end}
+.fld{margin-bottom:13px}
+.fld label{display:block;font-weight:700;color:var(--ink);margin-bottom:4px;font-size:12px}
+.fld .ctl{border:1px solid var(--line);border-radius:6px;padding:8px 10px;display:flex;align-items:center;gap:8px;background:#fff}
+.fld select,.fld input[type=text]{border:0;outline:0;flex:1;font-size:13px;color:var(--text);background:transparent}
+.fld .help{color:var(--muted);font-size:11.5px;margin-top:4px}
+.datepills{display:flex;align-items:center;gap:8px}
+.datepill{border:1px solid var(--line);border-radius:6px;padding:7px 11px;font-weight:700;color:var(--ink);background:#fff}
+.datepill.thu{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-dark)}
+.runline{display:flex;align-items:center;gap:8px;background:#f7f9f8;border:1px solid var(--line-soft);border-radius:6px;
+  padding:8px 10px;margin-bottom:12px;color:var(--text)}
+.runline b{color:var(--ink)}
+.chk{display:flex;gap:9px;align-items:flex-start;margin-bottom:12px;cursor:pointer}
+.chk input{margin-top:2px}
+.chk .t{font-weight:700;color:var(--ink)}
+.chk .d{color:var(--muted);font-size:12px;margin-top:1px}
+.hotelplan{border:1px solid var(--line-soft);border-radius:6px;padding:9px 11px;background:#fbfbfa}
+.hotelplan .hp-row{display:flex;align-items:center;gap:8px;margin:3px 0;font-size:12.5px}
+.hotelplan .n{font-weight:700;color:var(--ink)}
+.progress-run{padding:26px 18px;text-align:center}
+.spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--brand-soft);border-top-color:var(--brand);
+  margin:0 auto 12px;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.progress-run .pt{font-weight:700;color:var(--ink)}
+.progress-run .ps{color:var(--muted);margin-top:4px;font-size:12px}
+
+/* skipped drawer */
+.skiprow{border:1px solid var(--line);border-radius:6px;padding:9px 11px;margin-bottom:9px}
+.skiprow .sr-top{display:flex;gap:8px;align-items:center}
+.skiprow .reason{color:var(--muted);font-size:12px;margin-top:4px}
+.skiprow .fix{color:var(--brand);font-weight:700;font-size:12px;margin-top:5px;cursor:pointer}
+
+/* toast */
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;
+  padding:10px 16px;border-radius:8px;box-shadow:var(--shadow);z-index:90;opacity:0;transition:opacity .2s,transform .2s;
+  pointer-events:none;max-width:70vw;text-align:center}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+.hidden{display:none !important}
+.muted{color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <!-- ================= TOP BAR ================= -->
+  <header class="topbar">
+    <div class="seg" id="viewSeg">
+      <button data-view="map" class="active">🗺 Map</button>
+      <button data-view="board">📅 Hitch Board</button>
+      <button data-view="sched" title="Existing weekly schedule (not in this prototype)">Schedule</button>
+    </div>
+    <button class="saved">Saved: TechServ · Pole audits — all states <span class="chev">▾</span></button>
+    <button class="icon-btn" title="Settings">⚙</button>
+    <span class="spacer"></span>
+    <button class="btn" id="autoBtn" disabled>✨ Auto Schedule</button>
+    <button class="btn primary" id="dispatchBtn" disabled>➤ Dispatch (0)</button>
+  </header>
+
+  <!-- ================= COACH ================= -->
+  <div class="coach" id="coach">
+    <span class="step-no" id="coachNo">STEP 1 OF 5</span>
+    <span class="msg" id="coachMsg">Turn on <b>Draw hitch boundary</b> and lasso the South-Texas cluster — just like the ArcGIS workflow.</span>
+    <button class="dismiss" id="coachX" title="Hide guide">✕</button>
+  </div>
+
+  <!-- ================= BANNER SLOT ================= -->
+  <div id="bannerSlot"></div>
+
+  <!-- ================= BODY ================= -->
+  <div class="body">
+
+    <!-- Left: jobs -->
+    <aside class="jobs-panel">
+      <div class="panel-head"><h2 id="jobsH">Jobs (24)</h2></div>
+      <div class="search">🔍<input placeholder="Search Jobs" /></div>
+      <div class="chips" id="projChips">
+        <button class="chip active" data-proj="all">All</button>
+        <button class="chip" data-proj="AEP PCI"><span class="swatch" style="background:var(--aep)"></span>AEP PCI</button>
+        <button class="chip" data-proj="AEP Texas"><span class="swatch" style="background:var(--aeptx)"></span>AEP Texas</button>
+        <button class="chip" data-proj="Joint Use"><span class="swatch" style="background:var(--ju)"></span>Joint Use</button>
+        <button class="chip" data-proj="Engineering"><span class="swatch" style="background:var(--eng)"></span>Engineering</button>
+      </div>
+      <div class="job-list" id="jobList"></div>
+    </aside>
+
+    <!-- Center: map / board -->
+    <section class="stage" id="mapStage">
+      <div class="stage-toolbar">
+        <h2>Map — jobs &amp; crews</h2>
+        <button class="btn lasso-btn" id="lassoBtn">◌ Draw hitch boundary</button>
+        <button class="btn sm" id="clearLasso" disabled>Clear</button>
+        <span class="spacer"></span>
+        <span class="muted" id="mapHint">Pins are color-coded by parent project · ⌂ Tyler = home base</span>
+      </div>
+      <div class="map-wrap" id="mapWrap">
+        <svg class="map" id="map" viewBox="0 0 1060 800" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="legend">
+          <div class="title">Parent project</div>
+          <div class="k"><span class="sw" style="background:var(--aep)"></span>AEP PCI <span class="muted">· 100 poles/day</span></div>
+          <div class="k"><span class="sw" style="background:var(--aeptx)"></span>AEP Texas <span class="muted">· 100 poles/day</span></div>
+          <div class="k"><span class="sw" style="background:var(--ju)"></span>Joint Use <span class="muted">· variable</span></div>
+          <div class="k"><span class="sw" style="background:var(--eng)"></span>Engineering <span class="muted">· no pole count</span></div>
+        </div>
+        <div class="readout hidden" id="readout"></div>
+      </div>
+    </section>
+
+    <section class="stage hidden" id="boardStage">
+      <div class="stage-toolbar">
+        <h2>Hitch Board — day level, no clock times</h2>
+        <span class="muted">Thu → Thu · assign by the day, not the hour</span>
+        <span class="spacer"></span>
+        <div class="saved">Hitch window: <b>&nbsp;Thu 7/23 – Thu 7/30</b></div>
+      </div>
+      <div class="board-wrap"><div class="board-scroll" id="boardScroll"></div></div>
+    </section>
+
+    <!-- Right: hitches -->
+    <aside class="rail">
+      <div class="panel-head"><h2>Hitches</h2></div>
+      <div class="job-list" id="hitchList"></div>
+    </aside>
+  </div>
+
+  <!-- ================= SCENARIO BAR ================= -->
+  <div class="scenbar">
+    <span class="lbl">Mid-hitch reality ▸</span>
+    <button class="scen" id="scRain" disabled>🌧 Rain-out — Day 2</button>
+    <button class="scen" id="scNew" disabled>📍 New job appears in-boundary</button>
+    <button class="scen" id="scPull" disabled>⚡ Priority pull — West Texas</button>
+    <span class="spacer"></span>
+    <span class="muted" id="scenHint">Dispatch the hitch first, then stress-test it.</span>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Data — replicates the TechServ discovery calls exactly:
+   790-pole South-Texas cluster ≈ 9.5 days (over the 8-day
+   hitch), trimmed by excluding jobs; McAllen→Laredo→Corpus
+   sequencing with hotel moves; Tyler home base; lead-only
+   crews; WV fly-out hitch already in flight.
+   ============================================================ */
+const RATE = { 'AEP PCI':100, 'AEP Texas':100 };            // poles/day
+const PROJC = { 'AEP PCI':'var(--aep)', 'AEP Texas':'var(--aeptx)', 'Joint Use':'var(--ju)', 'Engineering':'var(--eng)' };
+
+// towns (map coords)
+const TOWNS = {
+  Tyler:{x:640,y:295}, Houston:{x:610,y:492}, SanAntonio:{x:432,y:520},
+  McAllen:{x:418,y:718}, Laredo:{x:342,y:622}, Corpus:{x:492,y:625},
+  Odessa:{x:205,y:352}, Abilene:{x:340,y:322}
+};
+
+const JOBS = [
+  // ---- South-Texas cluster (lasso target: 790 poles ≈ 9.5 days incl. JU/ENG) ----
+  {id:'JOB-4310', proj:'AEP Texas',  town:'McAllen', dx:-14,dy:-8,  poles:180, days:1.8, prio:'High',   due:'7/31'},
+  {id:'JOB-4311', proj:'AEP Texas',  town:'McAllen', dx:16,dy:6,    poles:120, days:1.2, prio:'Medium', due:'8/07'},
+  {id:'JOB-4312', proj:'Joint Use',  town:'McAllen', dx:-4,dy:22,   poles:90,  days:1.0, prio:'Medium', due:'8/14'},
+  {id:'JOB-4318', proj:'AEP PCI',    town:'Laredo',  dx:-10,dy:-12, poles:140, days:1.4, prio:'High',   due:'7/31'},
+  {id:'JOB-4319', proj:'AEP PCI',    town:'Laredo',  dx:14,dy:8,    poles:110, days:1.1, prio:'Medium', due:'8/07'},
+  {id:'JOB-4325', proj:'AEP Texas',  town:'Corpus',  dx:-8,dy:-10,  poles:150, days:1.5, prio:'Medium', due:'8/07'},
+  {id:'JOB-4326', proj:'Engineering',town:'Corpus',  dx:12,dy:10,   poles:null,days:1.5, prio:'Low',    due:'8/21'},
+  // ---- data-quality traps (also inside the lasso) ----
+  {id:'JOB-4330', proj:'Joint Use',  town:'McAllen', dx:30,dy:-14,  poles:null,days:null,prio:'Medium', due:'8/07', noPoles:true},
+  {id:'JOB-4331', proj:'AEP Texas',  town:'Laredo',  dx:-26,dy:20,  poles:95,  days:0.9, prio:'Low',    due:'8/14', noGeo:true},
+  // ---- elsewhere in Texas ----
+  {id:'JOB-4287', proj:'AEP PCI',    town:'Houston', dx:-16,dy:-6,  poles:210, days:2.1, prio:'Medium', due:'8/14'},
+  {id:'JOB-4288', proj:'Joint Use',  town:'Houston', dx:10,dy:12,   poles:70,  days:0.8, prio:'Low',    due:'8/21'},
+  {id:'JOB-4290', proj:'AEP Texas',  town:'SanAntonio',dx:-6,dy:-8, poles:130, days:1.3, prio:'Medium', due:'8/14'},
+  {id:'JOB-4291', proj:'Engineering',town:'SanAntonio',dx:14,dy:10, poles:null,days:2.0, prio:'Low',    due:'8/28'},
+  {id:'JOB-4295', proj:'AEP PCI',    town:'Abilene', dx:0,dy:-8,    poles:160, days:1.6, prio:'Medium', due:'8/21'},
+  {id:'JOB-4296', proj:'Joint Use',  town:'Abilene', dx:12,dy:12,   poles:55,  days:0.6, prio:'Low',    due:'8/28'},
+  {id:'JOB-4299', proj:'AEP Texas',  town:'Tyler',   dx:-14,dy:14,  poles:85,  days:0.9, prio:'Low',    due:'8/28'},
+  // ---- West Texas (priority-pull scenario) ----
+  {id:'JOB-4402', proj:'AEP PCI',    town:'Odessa',  dx:-8,dy:-6,   poles:120, days:1.2, prio:'High',   due:'7/28', west:true},
+  {id:'JOB-4403', proj:'AEP PCI',    town:'Odessa',  dx:12,dy:10,   poles:100, days:1.0, prio:'High',   due:'7/28', west:true},
+];
+
+// mid-hitch pop-up job (scenario 2)
+const NEWJOB = {id:'JOB-4341', proj:'Joint Use', town:'Laredo', dx:2,dy:-30, poles:60, days:0.5, prio:'High', due:'8/02'};
+
+const CREWS = [
+  {id:'A', name:'Team A — M. Reed',   sub:'Lead fielder · Crew of 2', note:'Home: Tyler, TX · available Thu 7/23', avail:true},
+  {id:'B', name:'Team B — D. Okafor', sub:'Lead fielder · Crew of 2', note:'On hitch — CenterPoint · returns 7/22', avail:true},
+  {id:'C', name:'Team C — J. Alvarez',sub:'Lead fielder · Crew of 2', note:'On hitch — West Virginia (fly) · returns 7/24', avail:false},
+  {id:'D', name:'Team D — S. Nguyen', sub:'Lead fielder · Crew of 2', note:'Home: Tyler, TX · available Thu 7/23', avail:true},
+];
+
+const DAYS = [
+  {key:'d1',label:'Thu 23',dow:'DAY 1'},{key:'d2',label:'Fri 24',dow:'DAY 2'},
+  {key:'d3',label:'Sat 25',dow:'DAY 3'},{key:'d4',label:'Sun 26',dow:'DAY 4'},
+  {key:'d5',label:'Mon 27',dow:'DAY 5'},{key:'d6',label:'Tue 28',dow:'DAY 6'},
+  {key:'d7',label:'Wed 29',dow:'DAY 7'},{key:'d8',label:'Thu 30',dow:'DAY 8'},
+];
+
+/* ---------- state ---------- */
+const S = {
+  view:'map', lassoOn:false, lassoPts:[], lassoClosed:false,
+  inLasso:new Set(), excluded:new Set(),
+  hitch:null,               // {name, crew, jobs:[ids], days}
+  plan:null,                // day plan after auto-schedule: [{day, town, jobs, hotel, travel}]
+  draft:false, dispatched:false,
+  skipped:[], rolled:false, newJobPlaced:false, pulled:false,
+  step:1
+};
+
+/* ---------- helpers ---------- */
+const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+function toast(m){let t=$('.toast');if(!t){t=document.createElement('div');t.className='toast';document.body.appendChild(t)}
+  t.innerHTML=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),3400)}
+function jobXY(j){const t=TOWNS[j.town];return{x:t.x+j.dx,y:t.y+j.dy}}
+function fmtd(n){return (Math.round(n*10)/10).toLocaleString('en-US')}
+function coach(no,msg){S.step=no;$('#coachNo').textContent='STEP '+no+' OF 5';$('#coachMsg').innerHTML=msg;$('#coach').classList.remove('hidden')}
+
+/* ============================================================
+   MAP RENDER
+   ============================================================ */
+const SVG='http://www.w3.org/2000/svg';
+function el(n,attrs,parent){const e=document.createElementNS(SVG,n);for(const k in attrs)e.setAttribute(k,attrs[k]);if(parent)parent.appendChild(e);return e}
+
+function drawMap(){
+  const m=$('#map');m.innerHTML='';
+  // Texas silhouette (schematic)
+  el('path',{class:'state',d:'M150,60 L330,60 L330,236 L560,242 L600,268 L672,258 L700,300 L706,430 L640,470 L660,560 L560,610 C540,660 520,690 470,672 L438,748 L400,730 L360,648 L300,560 L210,470 L150,430 Z'},m);
+  el('text',{class:'state-label',x:400,y:430,'font-size':'30'},m).textContent='T E X A S';
+  // faint roads
+  el('path',{class:'roadline',d:'M640,295 L610,492 L432,520 L342,622'},m);
+  el('path',{class:'roadline',d:'M432,520 L492,625 L418,718'},m);
+  el('path',{class:'roadline',d:'M640,295 L340,322 L205,352'},m);
+  // WV inset
+  el('rect',{x:790,y:60,width:230,height:150,rx:10,fill:'#e9edeb',stroke:'#c8d2ce'},m);
+  el('text',{class:'state-label',x:830,y:88,'font-size':'13'},m).textContent='WEST VIRGINIA';
+  el('text',{class:'town-label',x:830,y:112},m).textContent='Team C · fly-out hitch';
+  el('text',{class:'town-label',x:830,y:130},m).textContent='in flight · returns 7/24';
+  [[850,165],[890,150],[930,172],[965,148]].forEach(p=>{
+    el('circle',{cx:p[0],cy:p[1],r:6,fill:'var(--aep)',stroke:'#fff','stroke-width':1.4,opacity:.8},m)});
+  el('path',{class:'leg-home',d:'M700,300 C760,240 780,200 850,165'},m);
+  el('text',{class:'town-label',x:742,y:238},m).textContent='✈ fly + rental';
+
+  // towns
+  for(const [name,t] of Object.entries(TOWNS)){
+    if(name==='Tyler'){
+      el('text',{class:'home-label',x:t.x-6,y:t.y-14,'font-size':'15'},m).textContent='⌂';
+      el('text',{class:'home-label',x:t.x+10,y:t.y-12},m).textContent='Tyler — home base';
+    } else {
+      el('circle',{cx:t.x,cy:t.y,r:3,fill:'#9aa6a1'},m);
+      el('text',{class:'town-label',x:t.x+7,y:t.y+4},m).textContent=name.replace('SanAntonio','San Antonio').replace('Corpus','Corpus Christi');
+    }
+  }
+
+  // committed hitch boundary
+  if(S.hitch&&S.lassoClosed){
+    el('path',{class:'hitch-poly',d:pathD(S.lassoPts,true)},m);
+  } else if(S.lassoPts.length){
+    const over=curDays()>8.05;
+    el('path',{class:'lasso-path'+(over?' over':''),d:pathD(S.lassoPts,S.lassoClosed)},m);
+  }
+
+  // route (after auto-schedule)
+  if(S.plan){drawRoute(m)}
+
+  // job pins
+  JOBS.forEach(j=>{
+    if(j.noGeo)return;                       // no lat/long → can't pin (their ArcGIS pain, verbatim)
+    if(j.west&&!S.pulled&&!S.westShown)return;
+    drawPin(m,j);
+  });
+  if(S.newJobShown&&!S.newJobPlaced)drawPin(m,NEWJOB,true);
+  else if(S.newJobPlaced)drawPin(m,NEWJOB,false);
+}
+
+function drawPin(m,j,pulse){
+  const p=jobXY(j);
+  const g=el('g',{class:'pin'+(pulse?' newjob':'')+(S.excluded.has(j.id)?' excluded':'')
+    +(S.lassoClosed&&!S.inLasso.has(j.id)&&!S.hitch?' dim':'')},m);
+  if(pulse)el('circle',{class:'halo',cx:p.x,cy:p.y,r:8,fill:'none',stroke:'var(--ju)','stroke-width':2},g);
+  const done=S.dispatched&&S.hitch&&S.hitch.jobs.includes(j.id);
+  el('circle',{class:'core',cx:p.x,cy:p.y,r:8,fill:done?'var(--med)':PROJC[j.proj]},g);
+  if(S.hitch&&S.hitch.jobs.includes(j.id)&&S.plan){
+    const idx=S.planOrder.indexOf(j.id);
+    if(idx>-1)el('text',{x:p.x,y:p.y+3.4},g).textContent=idx+1;
+  }
+  g.addEventListener('click',()=>pinClick(j));
+  const tt=el('title',{},g);
+  tt.textContent=j.id+' · '+j.proj+(j.poles?' · '+j.poles+' poles':' · no pole count')+(j.days?' ≈ '+j.days+'d':'');
+}
+
+function pathD(pts,close){return pts.map((p,i)=>(i?'L':'M')+p[0]+','+p[1]).join(' ')+(close?' Z':'')}
+
+function drawRoute(m){
+  // Tyler → McAllen (travel) → Laredo → Corpus → Tyler
+  const seq=S.plan.filter(d=>d.town&&TOWNS[d.town]);
+  const uniq=[];seq.forEach(d=>{if(!uniq.length||uniq[uniq.length-1]!==d.town)uniq.push(d.town)});
+  const pts=[TOWNS.Tyler,...uniq.map(t=>TOWNS[t]),TOWNS.Tyler];
+  const cls=S.dispatched?'route committed':'route';
+  el('path',{class:'leg-home',d:'M'+pts[0].x+','+pts[0].y+' L'+pts[1].x+','+pts[1].y},m);
+  for(let i=1;i<pts.length-2;i++)
+    el('path',{class:cls,d:'M'+pts[i].x+','+pts[i].y+' L'+pts[i+1].x+','+pts[i+1].y},m);
+  el('path',{class:'leg-home',d:'M'+pts[pts.length-2].x+','+pts[pts.length-2].y+' L'+pts[pts.length-1].x+','+pts[pts.length-1].y},m);
+  // hotel badges
+  const hotels={};S.plan.forEach(d=>{if(d.hotel)hotels[d.hotel]=(hotels[d.hotel]||0)+1});
+  let i=0;
+  for(const[t,n]of Object.entries(hotels)){
+    const p=TOWNS[t];const g=el('g',{class:'hotel-badge'},m);
+    el('rect',{x:p.x+12,y:p.y+10,width:86,height:17},g);
+    el('text',{x:p.x+17,y:p.y+22},g).textContent='🛏 '+t.replace('Corpus','Corpus Ch.')+' · '+n+'n';
+    i++;
+  }
+}
+
+/* ---------- lasso interactions ---------- */
+function svgPoint(evt){
+  const svg=$('#map');const pt=svg.createSVGPoint();
+  pt.x=evt.clientX;pt.y=evt.clientY;
+  return pt.matrixTransform(svg.getScreenCTM().inverse());
+}
+let drawing=false;
+function wireLasso(){
+  const svg=$('#map');
+  svg.addEventListener('pointerdown',e=>{
+    if(!S.lassoOn||S.lassoClosed)return;
+    drawing=true;S.lassoPts=[];const p=svgPoint(e);S.lassoPts.push([p.x,p.y]);
+    svg.setPointerCapture(e.pointerId);
+  });
+  svg.addEventListener('pointermove',e=>{
+    if(!drawing)return;const p=svgPoint(e);
+    const last=S.lassoPts[S.lassoPts.length-1];
+    if(Math.hypot(p.x-last[0],p.y-last[1])>6){S.lassoPts.push([p.x,p.y]);drawMap()}
+  });
+  svg.addEventListener('pointerup',()=>{
+    if(!drawing)return;drawing=false;
+    if(S.lassoPts.length>8){S.lassoClosed=true;computeLasso();}
+    else{S.lassoPts=[]}
+    render();
+  });
+}
+function insidePoly(x,y,pts){let inside=false;
+  for(let i=0,jx=pts.length-1;i<pts.length;jx=i++){
+    const xi=pts[i][0],yi=pts[i][1],xj=pts[jx][0],yj=pts[jx][1];
+    if(((yi>y)!=(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside;
+  }return inside}
+function computeLasso(){
+  S.inLasso.clear();S.excluded.clear();
+  JOBS.forEach(j=>{if(j.noGeo)return;if(j.west&&!S.westShown)return;
+    const p=jobXY(j);if(insidePoly(p.x,p.y,S.lassoPts))S.inLasso.add(j.id)});
+}
+function curJobs(){return JOBS.filter(j=>S.inLasso.has(j.id)&&!S.excluded.has(j.id))}
+function curPoles(){return curJobs().reduce((a,j)=>a+(j.poles||0),0)}
+function curDays(){return curJobs().reduce((a,j)=>a+(j.days||0),0)}
+
+function pinClick(j){
+  if(S.hitch&&!S.dispatched)return;
+  if(S.lassoClosed&&S.inLasso.has(j.id)&&!S.hitch){
+    if(S.excluded.has(j.id))S.excluded.delete(j.id);else S.excluded.add(j.id);
+    if(S.step===2&&curDays()<=8.05)coach(3,'Fits the trip now. <b>Create the hitch</b> from the readout.');
+    render();
+  }
+}
+
+/* ---------- readout ---------- */
+function renderReadout(){
+  const r=$('#readout');
+  if(!S.lassoClosed||S.hitch){r.classList.add('hidden');return}
+  const jobs=curJobs(),poles=curPoles(),days=curDays();
+  const noP=jobs.filter(j=>j.days==null).length;
+  const over=days>8.05;
+  r.classList.toggle('over',over);r.classList.remove('hidden');
+  // position near lasso centroid
+  const cx=S.lassoPts.reduce((a,p)=>a+p[0],0)/S.lassoPts.length;
+  const mw=$('#mapWrap').getBoundingClientRect(), svg=$('#map').getBoundingClientRect();
+  const scale=svg.width/1060;
+  r.style.left=Math.min(mw.width-240,Math.max(8,cx*scale+((svg.left-mw.left))+30))+'px';
+  r.style.top='58px';
+  r.innerHTML=
+    '<div class="r-days">'+fmtd(days)+' days of work</div>'+
+    '<div class="r-sub"><b>'+jobs.length+' jobs · '+poles.toLocaleString()+' poles</b>'+(noP?' · '+noP+' unsized':'')+'</div>'+
+    (over
+      ?'<div class="r-warn">⚠ Exceeds the 8-day hitch. Click pins to trim the boundary — or keep it as a '+fmtd(days)+'-day exception.</div>'
+      :'<div class="r-ok">✓ Fits a Thu→Thu hitch ('+fmtd(days)+' of 8 days)</div>')+
+    '<div class="r-actions">'+
+      '<button class="btn primary sm" id="mkHitch">Create hitch ('+jobs.length+')</button>'+
+      (over?'<button class="btn sm" id="mkException">Keep as exception</button>':'')+
+    '</div>'+
+    '<div class="hint">Click a pin to include / exclude it. Readout updates live.</div>';
+  $('#mkHitch').onclick=()=>openCreateHitch(false);
+  const ex=$('#mkException');if(ex)ex.onclick=()=>openCreateHitch(true);
+}
+
+/* ============================================================
+   CREATE HITCH SHEET
+   ============================================================ */
+function openCreateHitch(exception){
+  const jobs=curJobs(),days=curDays();
+  const veil=document.createElement('div');veil.className='sheet-veil';
+  veil.innerHTML=
+  '<div class="sheet">'+
+    '<div class="sheet-head"><h3>Create hitch</h3>'+
+    '<div class="sub">A hitch is a parent work package over these jobs — crews complete it start-to-finish.</div></div>'+
+    '<div class="sheet-bd">'+
+      '<div class="fld"><label>Hitch name</label><div class="ctl"><input type="text" id="hName" value="HITCH-STX-0723 · South Texas"/></div></div>'+
+      '<div class="fld"><label>Window (day-level — no clock times)</label>'+
+        '<div class="datepills"><span class="datepill thu">Thu, Jul 23</span><span class="muted">→</span>'+
+        '<span class="datepill thu">Thu, Jul 30</span><span class="muted">8 days'+(exception?' · planned '+fmtd(days)+'d exception':'')+'</span></div>'+
+        '<div class="help">Hitches run Thursday to Thursday. Work is assigned by the day.</div></div>'+
+      '<div class="fld"><label>Crew</label><div class="ctl"><select id="hCrew">'+
+        CREWS.map(c=>'<option value="'+c.id+'"'+(c.avail?'':' disabled')+'>'+c.name+' — '+c.note+'</option>').join('')+
+        '</select></div>'+
+        '<div class="help">Only the lead is scheduled. Helpers travel with the lead but stay off-system.</div></div>'+
+      '<div class="fld"><label>Travel &amp; overnight plan (output for hotel booking)</label>'+
+        '<div class="hotelplan">'+
+          '<div class="hp-row">🚚 <span class="n">Drive out Wed 7/22</span> — Tyler → McAllen (7h 40m)</div>'+
+          '<div class="hp-row">🛏 <span class="n">McAllen</span> · nights 1–3 → <span class="n">Laredo</span> · nights 4–5 → <span class="n">Corpus Christi</span> · nights 6–7</div>'+
+          '<div class="hp-row">⌂ <span class="n">Drive home Thu 7/30</span> — Corpus → Tyler (5h 10m)</div>'+
+        '</div>'+
+        '<div class="help">Hotels move only when the next cluster is &gt;1h away. Book all 8 nights before departure.</div></div>'+
+    '</div>'+
+    '<div class="sheet-ft"><button class="btn" id="hCancel">Cancel</button>'+
+    '<button class="btn primary" id="hCreate">Create hitch · '+jobs.length+' jobs</button></div>'+
+  '</div>';
+  document.body.appendChild(veil);
+  $('#hCancel').onclick=()=>veil.remove();
+  $('#hCreate').onclick=()=>{
+    S.hitch={name:$('#hName').value,crew:'A',jobs:jobs.map(j=>j.id),days:days,exception:exception};
+    veil.remove();
+    $('#autoBtn').disabled=false;
+    coach(4,'Hitch created as a parent of '+jobs.length+' jobs. Now hit <b>✨ Auto Schedule</b> — it sequences the days inside the hitch.');
+    toast('HITCH-STX-0723 created — '+jobs.length+' jobs grouped under Team A');
+    render();
+  };
+}
+
+/* ============================================================
+   AUTO SCHEDULE (popover → run → draft)
+   ============================================================ */
+function openAutoSchedule(){
+  const jobs=S.hitch.jobs.map(id=>JOBS.find(j=>j.id===id));
+  const veil=document.createElement('div');veil.className='sheet-veil';
+  veil.innerHTML=
+  '<div class="sheet">'+
+    '<div class="sheet-head"><h3>✨ Auto Schedule</h3><div class="sub">Scoped to HITCH-STX-0723</div></div>'+
+    '<div class="sheet-bd" id="asBody">'+
+      '<div class="runline">This run: <b>'+jobs.length+' jobs</b> × <b>1 crew</b> × <b>8 days</b></div>'+
+      '<div class="fld"><label>Time horizon</label>'+
+        '<div class="datepills"><span class="datepill thu">Thu 7/23</span><span class="muted">→</span><span class="datepill thu">Thu 7/30</span></div></div>'+
+      '<label class="chk"><input type="checkbox" id="asResched"/><span><span class="t">Allow rescheduling</span>'+
+        '<div class="d">Jobs already scheduled are reconsidered for optimized placement.</div></span></label>'+
+      '<label class="chk"><input type="checkbox" checked disabled/><span><span class="t">Sequence by drive distance</span>'+
+        '<div class="d">Orders jobs town-to-town inside the hitch; overnight base follows the work.</div></span></label>'+
+    '</div>'+
+    '<div class="sheet-ft"><button class="btn" id="asCancel">Cancel</button>'+
+    '<button class="btn primary" id="asRun">Run</button></div>'+
+  '</div>';
+  document.body.appendChild(veil);
+  $('#asCancel').onclick=()=>veil.remove();
+  $('#asRun').onclick=()=>{
+    $('#asBody').innerHTML='<div class="progress-run"><div class="spin"></div>'+
+      '<div class="pt">Optimizing placement…</div>'+
+      '<div class="ps">'+jobs.length+' jobs × 1 crew × 8 days · solves in under 10 seconds</div></div>';
+    document.querySelector('.sheet-ft').style.visibility='hidden';
+    setTimeout(()=>{runSolver();veil.remove()},1600);
+  };
+}
+
+function runSolver(){
+  // skipped: data-quality jobs (verbatim demo behavior)
+  S.skipped=[];
+  const good=[];
+  S.hitch.jobs.forEach(id=>{
+    const j=JOBS.find(x=>x.id===id)||(id===NEWJOB.id?NEWJOB:null);
+    if(!j)return;
+    if(j.noPoles)S.skipped.push({j,reason:'Missing pole count — estimated duration can’t be computed (poles × rate).',fix:'Add pole count & re-run'});
+    else if(j.noGeo)S.skipped.push({j,reason:'No lat/long on site — job can’t be pinned or sequenced.',fix:'Add geolocation & re-run'});
+    else good.push(j);
+  });
+  // day plan: McAllen (d1-2) → Laredo (d3-4) → rest day → Corpus (d6-8)
+  const seq=['McAllen','Laredo','Corpus'];
+  const ordered=[];seq.forEach(t=>good.filter(j=>j.town===t).forEach(j=>ordered.push(j)));
+  S.planOrder=ordered.map(j=>j.id);
+  S.plan=[
+    {day:'d1',town:'McAllen',jobs:ordered.filter(j=>j.town==='McAllen').slice(0,2),hotel:'McAllen',travel:'Drove out Wed · on site 7:30a'},
+    {day:'d2',town:'McAllen',jobs:ordered.filter(j=>j.town==='McAllen').slice(2),hotel:'McAllen'},
+    {day:'d3',town:'Laredo',jobs:[ordered.find(j=>j.id==='JOB-4318')].filter(Boolean),hotel:'McAllen',travel:'McAllen → Laredo · 2h 20m'},
+    {day:'d4',town:'Laredo',jobs:[ordered.find(j=>j.id==='JOB-4319')].filter(Boolean),hotel:'Laredo'},
+    {day:'d5',town:'Laredo',jobs:[],hotel:'Laredo',buffer:true},
+    {day:'d6',town:'Corpus',jobs:[ordered.find(j=>j.id==='JOB-4325')].filter(Boolean),hotel:'Corpus',travel:'Laredo → Corpus · 2h 45m'},
+    {day:'d7',town:'Corpus',jobs:ordered.filter(j=>j.town==='Corpus').slice(1),hotel:'Corpus'},
+    {day:'d8',town:'Corpus',jobs:[],home:true,travel:'Corpus → Tyler · 5h 10m · home'},
+  ];
+  S.draft=true;
+  const placed=ordered.length;
+  banner('warn',
+    'Auto Schedule placed '+placed+' jobs as draft — skipped '+S.skipped.length+' of '+(placed+S.skipped.length),
+    'Review the route on the map or the Hitch Board, then dispatch. Skipped jobs stay in the queue — nothing disappears.',
+    '<button class="pill-link" id="viewSkipped">View skipped ('+S.skipped.length+')</button>'+
+    '<button class="pill-link" id="goBoard">Open Hitch Board</button>');
+  $('#dispatchBtn').disabled=false;$('#dispatchBtn').textContent='➤ Dispatch ('+placed+')';
+  coach(5,'The solver proposed a day-by-day route (draft, dashed). <b>Validate it visually</b>, then Dispatch.');
+  render();
+  $('#viewSkipped').onclick=openSkipped;
+  $('#goBoard').onclick=()=>switchView('board');
+}
+
+function openSkipped(){
+  const veil=document.createElement('div');veil.className='sheet-veil';
+  veil.innerHTML='<div class="sheet"><div class="sheet-head"><h3>Skipped jobs ('+S.skipped.length+')</h3>'+
+  '<div class="sub">Fixable errors — resolve and re-run to place them.</div></div><div class="sheet-bd">'+
+  S.skipped.map(s=>'<div class="skiprow"><div class="sr-top"><span class="jid" style="color:var(--brand);font-weight:700">'+s.j.id+'</span>'+
+    '<span class="tag skip">Skipped</span><span class="muted">'+s.j.proj+'</span></div>'+
+    '<div class="reason">'+s.reason+'</div><div class="fix">↺ '+s.fix+'</div></div>').join('')+
+  '</div><div class="sheet-ft"><button class="btn" id="skClose">Close</button></div></div>';
+  document.body.appendChild(veil);$('#skClose').onclick=()=>veil.remove();
+}
+
+/* ---------- banner ---------- */
+function banner(kind,title,sub,actions){
+  $('#bannerSlot').innerHTML='<div class="banner '+(kind==='ok'?'success':'')+'">'+
+    '<span class="b-icon">'+(kind==='ok'?'✦':'⚠')+'</span>'+
+    '<div class="b-body"><div class="b-title">'+title+'</div><div class="b-sub">'+sub+'</div></div>'+
+    '<div class="b-actions">'+(actions||'')+'<button class="btn sm" id="bDismiss">Dismiss</button></div></div>';
+  $('#bDismiss').onclick=()=>$('#bannerSlot').innerHTML='';
+}
+
+/* ============================================================
+   HITCH BOARD (Thu → Thu, day level)
+   ============================================================ */
+function renderBoard(){
+  const sc=$('#boardScroll');
+  let head='<div class="bhead"><div class="bh-cell res-h">Crew</div>';
+  DAYS.forEach((d,i)=>{head+='<div class="bh-cell'+(i===0?' hstart':'')+'"><span class="dow">'+d.dow+'</span>'+d.label+'</div>'});
+  head+='</div>';
+  let rows='';
+  CREWS.forEach(c=>{
+    rows+='<div class="brow"><div class="res-cell">'+
+      '<div class="res-name"><span class="ricon">👥</span>'+c.name+'</div>'+
+      '<div class="res-sub">'+c.sub+'</div><div class="res-sub">'+c.note+'</div>'+
+      (c.id==='A'&&S.hitch?'<div class="res-note">'+S.hitch.name.split(' · ')[0]+(S.pulled?' + HITCH-WTX':'')+'</div>':'')+
+      '</div>';
+    DAYS.forEach(d=>{
+      rows+='<div class="bday'+(dayIsTravel(c,d)?' travelday':'')+'">'+dayCell(c,d)+'</div>';
+    });
+    rows+='</div>';
+  });
+  sc.innerHTML='<div class="btable">'+head+rows+'</div>';
+}
+function dayIsTravel(c,d){
+  if(c.id!=='A'||!S.plan)return false;
+  const p=S.plan.find(x=>x.day===d.key);return p&&(p.travel&&!p.jobs.length||p.home);
+}
+function dayCell(c,d){
+  if(c.id!=='A'||!S.plan){
+    if(c.id==='B'&&(d.key==='d1'))return '<div class="offhitch">back from CenterPoint</div>';
+    if(c.id==='C'&&(d.key==='d1'||d.key==='d2'))return '<div class="offhitch">WV hitch — returns 7/24</div>';
+    return '<div class="offhitch">—</div>';
+  }
+  const p=S.plan.find(x=>x.day===d.key);if(!p)return'';
+  let out='';
+  if(p.travel)out+='<div class="travel-strip">🚚 <b>'+p.travel+'</b></div>';
+  p.jobs.forEach(j=>{
+    const rolled=S.rolledIds&&S.rolledIds.has(j.id);
+    out+='<div class="dayblock'+(S.dispatched?'':' draft')+(rolled?' rolled':'')+'">'+
+      (S.dispatched?'':'<span class="dtag">DRAFT</span>')+
+      '<div class="b-id">'+j.id+(rolled?' ⟳':'')+'</div>'+
+      '<div class="b-sub">'+j.proj+(j.poles?' · '+j.poles+' poles · '+j.days+'d':' · '+(j.days||'?')+'d')+'</div></div>';
+  });
+  if(p.buffer&&!p.jobs.length)out+='<div class="offhitch">buffer · weather day</div>';
+  if(p.hotel&&!p.home)out+='<div class="hotel-strip">🛏 '+p.hotel.replace('Corpus','Corpus Ch.')+'</div>';
+  if(p.home)out+='<div class="hotel-strip" style="color:var(--brand)">⌂ home Thu night</div>';
+  return out;
+}
+
+/* ============================================================
+   SCENARIOS — the “punched in the face” drills
+   ============================================================ */
+function wireScenarios(){
+  $('#scRain').onclick=()=>{
+    // day-2 McAllen jobs roll forward into buffer day; locked to Team A
+    S.rolledIds=new Set();
+    const d2=S.plan.find(x=>x.day==='d2');
+    const d5=S.plan.find(x=>x.day==='d5');
+    d2.jobs.forEach(j=>{S.rolledIds.add(j.id);d5.jobs.push(j)});
+    const nRolled=d2.jobs.length;
+    d2.jobs=[];d2.note='rained out';d5.buffer=false;d5.town='McAllen→Laredo';
+    S.rolled=true;$('#scRain').classList.add('done');$('#scRain').disabled=true;
+    banner('warn','Rain-out on Day 2 — '+nRolled+' job'+(nRolled===1?'':'s')+' shifted within the hitch',
+      'Jobs stay locked to Team A and roll into the Day-5 buffer. Nothing left the hitch; the remaining sequence is unchanged. If the buffer overflows, the hitch flags an extension (9-day exception) or rolls work to the next hitch.',
+      '<button class="pill-link" id="goBoard2">See shifted days</button>');
+    render();$('#goBoard2').onclick=()=>switchView('board');
+    toast(nRolled+' job'+(nRolled===1?'':'s')+' rolled forward — locked to Team A, re-sequenced ⟳');
+  };
+  $('#scNew').onclick=()=>{
+    S.newJobShown=true;switchView('map');
+    banner('warn','New job landed inside HITCH-STX-0723’s boundary',
+      'JOB-4341 (Joint Use · 60 poles ≈ 0.5d · due 8/02) appeared in Laredo mid-hitch. Team A is already out there — add it to this hitch instead of triggering a new trip for one job.',
+      '<button class="pill-link" id="njAdd">Add to hitch · fits Day 4 (+0.5d)</button><button class="pill-link" id="njQ">Leave in queue</button>');
+    render();
+    $('#njAdd').onclick=()=>{
+      S.newJobPlaced=true;S.hitch.jobs.push(NEWJOB.id);
+      const d4=S.plan.find(x=>x.day==='d4');d4.jobs.push(NEWJOB);S.planOrder.push(NEWJOB.id);
+      $('#scNew').classList.add('done');$('#scNew').disabled=true;
+      banner('ok','JOB-4341 added to HITCH-STX-0723','Placed on Day 4 (Laredo) — same overnight base, no extra hotel move. Hitch is now 8.3 of 8 days.','');
+      render();toast('JOB-4341 → Day 4 · Laredo — added without a new trip');
+    };
+    $('#njQ').onclick=()=>{$('#bannerSlot').innerHTML='';toast('JOB-4341 stays in the unassigned queue.')};
+  };
+  $('#scPull').onclick=()=>{
+    S.pulled=true;S.westShown=true;
+    // pull remaining Corpus days off Team A
+    const d6=S.plan.find(x=>x.day==='d6'),d7=S.plan.find(x=>x.day==='d7');
+    S.pulledJobs=[...d6.jobs,...d7.jobs];
+    d6.jobs=[];d7.jobs=[];d6.town='Odessa';d7.town='Odessa';
+    d6.travel='Corpus → Odessa · 6h 30m · priority move';d6.hotel='Odessa';d7.hotel='Odessa';
+    const d8=S.plan.find(x=>x.day==='d8');d8.town='Odessa';d8.travel='Odessa → Tyler · 6h 50m · home';
+    d6.jobs=[JOBS.find(j=>j.id==='JOB-4402')];d7.jobs=[JOBS.find(j=>j.id==='JOB-4403')];
+    S.planOrder.push('JOB-4402','JOB-4403');
+    S.pulledJobs.forEach(j=>{const i=S.hitch.jobs.indexOf(j.id);if(i>-1)S.hitch.jobs.splice(i,1)});
+    $('#scPull').classList.add('done');$('#scPull').disabled=true;
+    const nP=S.pulledJobs.length;
+    banner('warn','Priority pull — Team A re-routed to West Texas within the hour',
+      'Days 6–7 bulk-unscheduled in one action: calendar events cleared and '+nP+' job'+(nP===1?'':'s')+' reverted to <b>Unassigned</b> — visible in reports, back in the left queue for the next hitch. New priority collection (2 jobs, Odessa) slotted in their place.',
+      '<button class="pill-link" id="ppMap">See re-route on map</button>');
+    render();$('#ppMap').onclick=()=>switchView('map');
+    toast(S.pulledJobs.length+' job'+(S.pulledJobs.length===1?'':'s')+' → Unassigned (status reverted, still in queue) · Team A re-routed');
+  };
+}
+
+/* ============================================================
+   LEFT PANEL
+   ============================================================ */
+function renderJobs(){
+  const list=$('#jobList');const filt=S.projFilter||'all';
+  const rows=[];
+  const all=[...JOBS,...(S.newJobPlaced?[NEWJOB]:[])];
+  let count=0;
+  all.forEach(j=>{
+    if(j.west&&!S.westShown)return;
+    if(filt!=='all'&&j.proj!==filt)return;
+    count++;
+    const inH=S.hitch&&S.hitch.jobs.includes(j.id);
+    const skipped=S.skipped.some(s=>s.j.id===j.id);
+    const pulledBack=S.pulledJobs&&S.pulledJobs.some(p=>p.id===j.id);
+    let tag;
+    if(pulledBack)tag='<span class="tag unassigned">Unassigned ↩</span>';
+    else if(skipped)tag='<span class="tag skip">Skipped</span>';
+    else if(inH&&S.dispatched)tag='<span class="tag sched">Scheduled</span>';
+    else if(inH&&S.draft)tag='<span class="tag drafttag">Draft</span>';
+    else if(inH)tag='<span class="tag hitchtag">HITCH-STX</span>';
+    else tag='<span class="tag unassigned">Unassigned</span>';
+    const sel=S.lassoClosed&&!S.hitch&&S.inLasso.has(j.id);
+    rows.push('<div class="job-card'+(sel&&!S.excluded.has(j.id)?' inlasso':'')+(S.excluded.has(j.id)?' excluded':'')+'">'+
+      '<div class="jc-top"><span class="projdot" style="background:'+PROJC[j.proj]+'"></span>'+
+      '<span class="jid">'+j.id+'</span><span style="margin-left:auto">'+tag+'</span></div>'+
+      '<div class="jc-meta">'+
+        '<div>'+j.proj+' · '+(j.town==='SanAntonio'?'San Antonio':j.town)+(j.noGeo?' · <b style="color:var(--hi)">no lat/long</b>':'')+'</div>'+
+        '<div>'+(j.poles?'<span class="poles">'+j.poles+' poles</span> ≈ '+j.days+'d':(j.noPoles?'<b style="color:var(--hi)">no pole count</b>':'est '+j.days+'d (no poles — Engineering)'))+
+        ' · Due '+j.due+' · <span class="prio '+j.prio+'">'+j.prio+'</span></div>'+
+      '</div></div>');
+  });
+  $('#jobsH').textContent='Jobs ('+count+')';
+  list.innerHTML=rows.join('');
+}
+
+/* ---------- right rail ---------- */
+function renderHitches(){
+  const el=$('#hitchList');const cards=[];
+  if(S.hitch){
+    const total=S.hitch.jobs.length;
+    const days=S.hitch.jobs.reduce((a,id)=>{const j=JOBS.find(x=>x.id===id)||(id===NEWJOB.id?NEWJOB:null);return a+((j&&j.days)||0)},0);
+    const pct=Math.min(100,days/8*100);
+    cards.push('<div class="hitch-card'+(S.draft&&!S.dispatched?' draft-h':'')+'">'+
+      '<div class="h-name">HITCH-STX-0723</div>'+
+      '<div class="h-sub">South Texas · Team A — M. Reed</div>'+
+      '<div class="h-row"><span class="datepill thu" style="padding:3px 8px;font-size:11px">Thu 7/23 → Thu 7/30</span>'+
+      '<span class="mode-pill">🚚 DRIVE</span>'+
+      (S.dispatched?'<span class="tag sched">Dispatched</span>':(S.draft?'<span class="tag drafttag">Draft route</span>':'<span class="tag hitchtag">Planned</span>'))+'</div>'+
+      '<div class="loadbar"><i style="width:'+pct+'%" class="'+(days>8.05?'over':'')+'"></i></div>'+
+      '<div class="loadmeta"><span>'+total+' jobs · '+fmtd(days)+' of 8 days</span><span>McAllen → Laredo → Corpus</span></div>'+
+      '</div>');
+    if(S.pulled)cards.push('<div class="hitch-card"><div class="h-name">HITCH-WTX-0728 ⚡</div>'+
+      '<div class="h-sub">West Texas priority · Team A (mid-hitch re-route)</div>'+
+      '<div class="h-row"><span class="mode-pill">🚚 DRIVE</span><span class="tag sched">Live</span></div>'+
+      '<div class="loadmeta" style="margin-top:6px"><span>2 jobs · 2.2 days</span><span>Odessa</span></div></div>');
+  }
+  cards.push('<div class="hitch-card" style="border-left-color:#5b4db2"><div class="h-name">HITCH-WV-0716</div>'+
+    '<div class="h-sub">West Virginia · Team C — J. Alvarez</div>'+
+    '<div class="h-row"><span class="mode-pill fly">✈ FLY + RENTAL</span><span class="tag sched">In flight</span></div>'+
+    '<div class="loadbar"><i style="width:78%"></i></div>'+
+    '<div class="loadmeta"><span>11 jobs · 7.8 of 8 days</span><span>returns 7/24</span></div></div>');
+  cards.push('<div class="hitch-card" style="border-left-color:#c9c7c5;opacity:.75"><div class="h-name">HITCH-CTR-0709</div>'+
+    '<div class="h-sub">CenterPoint · Team B — D. Okafor</div>'+
+    '<div class="h-row"><span class="mode-pill">🚚 DRIVE</span><span class="tag" style="background:#f1f1f0;color:#706e6b">Completing 7/22</span></div>'+
+    '<div class="loadmeta" style="margin-top:6px"><span>9 jobs · rained out 2d — 2 rolled</span><span></span></div></div>');
+  el.innerHTML=cards.join('');
+}
+
+/* ============================================================
+   SHELL / RENDER
+   ============================================================ */
+function switchView(v){
+  S.view=v;
+  $$('#viewSeg button').forEach(b=>b.classList.toggle('active',b.dataset.view===v));
+  $('#mapStage').classList.toggle('hidden',v!=='map');
+  $('#boardStage').classList.toggle('hidden',v!=='board');
+  if(v==='sched'){toast('The hourly weekly schedule stays as-is — TechServ plans at day level in the Hitch Board.');switchView(S.hitch?'board':'map');return}
+  render();
+}
+function render(){
+  drawMap();renderReadout();renderJobs();renderHitches();renderBoard();
+  $('#clearLasso').disabled=!S.lassoPts.length||!!S.hitch;
+}
+
+/* ---------- wiring ---------- */
+$('#viewSeg').addEventListener('click',e=>{const b=e.target.closest('button');if(b)switchView(b.dataset.view)});
+$('#lassoBtn').onclick=()=>{
+  if(S.hitch)return toast('Hitch already created — clear demo (reload) to redraw.');
+  S.lassoOn=!S.lassoOn;$('#lassoBtn').classList.toggle('on',S.lassoOn);
+  $('#map').classList.toggle('lassoing',S.lassoOn);
+  if(S.lassoOn){$('#mapHint').textContent='Click-drag to draw a boundary around a job cluster';
+    if(S.step===1)coach(2,'Drag around McAllen + Laredo + Corpus. The readout totals poles → days against the 8-day target.')}
+};
+$('#clearLasso').onclick=()=>{S.lassoPts=[];S.lassoClosed=false;S.inLasso.clear();S.excluded.clear();render()};
+$('#autoBtn').onclick=()=>{if(S.hitch)openAutoSchedule()};
+$('#dispatchBtn').onclick=()=>{
+  if(!S.draft||S.dispatched)return;
+  S.dispatched=true;
+  const n=S.planOrder.length;
+  banner('ok','Hitch dispatched — '+n+' jobs scheduled to Team A',
+    'Route committed (solid). Ops keeps full point-and-click control from here: shift days, pull jobs, bulk-unschedule — no developer needed.','');
+  $('#dispatchBtn').textContent='➤ Dispatched ✓';$('#dispatchBtn').disabled=true;
+  ['scRain','scNew','scPull'].forEach(id=>$('#'+id).disabled=false);
+  $('#scenHint').textContent='Now break the plan — the way a real Tuesday does.';
+  $('#coach').classList.add('hidden');
+  toast('HITCH-STX-0723 is live. Try the mid-hitch reality buttons below ↓');
+  render();
+};
+$('#coachX').onclick=()=>$('#coach').classList.add('hidden');
+$('#projChips').addEventListener('click',e=>{
+  const c=e.target.closest('.chip');if(!c)return;
+  S.projFilter=c.dataset.proj;
+  $$('#projChips .chip').forEach(x=>x.classList.toggle('active',x===c));renderJobs();
+});
+
+wireLasso();wireScenarios();render();
+</script>
+</body>
+</html>
